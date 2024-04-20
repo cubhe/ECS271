@@ -1,7 +1,7 @@
 # Created by Renzhi He, UCDavis, 2024
 
 from NeRF import MLP
-
+import time
 import pandas as pd
 import numpy as np
 import torch
@@ -34,12 +34,15 @@ def test(model, dataloader):
             correct += (predicted == targets).sum().item()
     print(f'Accuracy: {100 * correct / total}%')
 def main():
-    writer = SummaryWriter('runs/experiment_2')
 
+    #logs
+    writer = SummaryWriter('runs/exp_2_bs1000')
+    time0=time.time()
+
+    # Create the dataset
     # File path to your Excel dataset
     file_path = 'data.xlsx'
     classes=10
-    # Create the dataset
     # load data
     filepath = './studentsdigits-train.csv'
     data_train = pd.read_csv(filepath, header=None).values[1:, :]
@@ -51,10 +54,11 @@ def main():
     y=np.zeros((lens,classes))
     for i in range(lens):
         y[i,int(y_org[i])] = 1
-
     print(x.shape, y.shape)
     x=torch.from_numpy(x).float().cuda()
     y=torch.from_numpy(y).float().cuda()
+
+    #split the dataset for train and validate
     id = np.random.permutation(x.shape[0])
     x_t=x[id[:int(lens*0.85)]]
     y_t=y[id[:int(lens*0.85)]]
@@ -70,8 +74,8 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
     # Train the model
-    epochs = 1250  # You can adjust the number of epochs
-    batch_size = 500
+    epochs = 2250  # You can adjust the number of epochs
+    batch_size = 1000
     global_step=0
     loss=0
 
@@ -95,9 +99,19 @@ def main():
             writer.add_scalar('Training loss', loss.item(), global_step)
         print(f'Epoch {epoch + 1}, Steps {global_step}, Loss: {loss}')
 
-    # Test the model
-    # test(model, test_loader)
+    #Test the model
+    # test(model, x_v,y_v)
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
 
+        outputs = model(x_v)
+        predicted = torch.argmax(outputs.data, 1)
+        gt = torch.argmax(y_v.data, 1)
+        total = gt.size(0)
+        correct = (predicted == gt).sum().item()
+    print(f'Accuracy: {100 * correct / total}%, traning time: {time.time()-time0}s')
     writer.close()
 # Entry point of the script
 if __name__ == '__main__':
